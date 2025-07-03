@@ -97,8 +97,8 @@ struct Force
 // Revolute joint + angle constraint between two rigid bodies, with optional motor and fracture
 struct Joint : Force
 {
-    float2 rA, rB;
-    float3 C0;
+    float2 rA, rB; // moment arm in body coords
+    float3 C0; // constraint violation
     float torqueArm;
     float restAngle;
 
@@ -116,7 +116,7 @@ struct Joint : Force
 // Standard spring force
 struct Spring : Force
 {
-    float2 rA, rB;
+    float2 rA, rB; // moment arm in body coords
     float rest;
 
     Spring(Solver* solver, Rigid* bodyA, Rigid* bodyB, float2 rA, float2 rB, float stiffness, float rest = -1);
@@ -163,8 +163,8 @@ struct Manifold : Force
     struct Contact
     {
         FeaturePair feature;
-        float2 rA;
-        float2 rB;
+        float2 rA; // contact point in body(A) coords
+        float2 rB; // contact point in body(B) coords
         float2 normal;
 
         float3 JAn, JBn, JAt, JBt;

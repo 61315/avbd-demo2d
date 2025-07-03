@@ -28,27 +28,53 @@ void Spring::computeConstraint(float alpha)
 void Spring::computeDerivatives(Rigid* body)
 {
     // Compute the first and second derivatives for the desired body
+    // R = [c -s; s c]; and dR/dtheta = S = [-s -c; c -s]; 
+    // if theta = 0, R = [1 0; 0 1]; and S = [0 -1; 1 0];
     float2x2 S = { 0, -1, 1, 0 };
     float2x2 I = { 1, 0, 0, 1 };
 
+    // .transform(), point transform
+    // .rotate(), vector transform
+
+    // attachment point delta in world coords
     float2 d = transform(bodyA->position, rA) - transform(bodyB->position, rB);
     float dlen2 = dot(d, d);
     if (dlen2 == 0)
         return;
     float dlen = sqrtf(dlen2);
-    float2 n = d / dlen;
+    float2 n = d / dlen; // unit direction in world coords (rB_world to rA_world)
+    
+    // double partial of `d` wrt `x`
     float2x2 dxx = (I - outer(n, n) / dlen2) / dlen;
 
+    // For body_a:
+    // rAw = R(theta_a) * rA
+    // d = rAw - rBw
+    // |d| = |rAw - rBw|
+    // C = |d| - rest
+    // S = dR(theta_a)/dtheta_a = a 90-degree turn ccw
+    // dd/dtheta_a = drAw/dtheta_a = S * R(theta_a) * rA = S * rAw
+    // dx = dC/dx_a = d/|d| or `n`
+    // dr = dC/dtheta_a = d|d|/dtheta_a = n * (dd/dtheta_a) = n * (S * rAw)
+    // dxx = dn/dx = (I - n*n')/|d|
+    // dxr = dn/dtheta_a = dxx * S * rAw
+    //            ^--------------------------->
+    // drr = d(n * S * rAw)/dtheta_a = (dn/dtheta_a) * S * rAw + n * S * (drAw/dtheta_a)
+    //                               = (dxr) * S * rAw         + n * S * (S * rAw)
+    //                               = dxr * S * rAw           + n * (S * S) * rAw
+    //                               = dxr * S * rAw           + n * -I * rAw
+    //                               = dot(dxr, S * rAw))      - dot(n, rAw)
     if (body == bodyA)
     {
-        float2 Sr = rotate(bodyA->position.z, S * rA);
-        float2 r = rotate(bodyA->position.z, rA);
-        float2 dxr = dxx * Sr;
+        // theta is stored in position.z()
+        float2 Sr = rotate(bodyA->position.z, S * rA); // Sr = S * R(theta_a) * rA = S * rAw
+        float2 r = rotate(bodyA->position.z, rA); // r = R(theta_a) * rA, or call it rAw
+        float2 dxr = dxx * Sr; // dxx * S * rAw
         float drr = dot(Sr, dxr) - dot(n, r);
 
-        J[0].xy() = n;
-        J[0].z = dot(n, Sr);
-        H[0] = {
+        J[0].xy() = n; // dC/dx_a = dx = n
+        J[0].z = dot(n, Sr); // dC/dtheta_a = dr = n * S * rAw 
+        H[0] = { // assemble with dxx, dxr, drr
             dxx.row[0].x, dxx.row[0].y, dxr.x,
             dxx.row[1].x, dxx.row[1].y, dxr.y,
             dxr.x,          dxr.y,        drr
